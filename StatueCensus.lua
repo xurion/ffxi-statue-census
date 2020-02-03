@@ -36,12 +36,13 @@ config = require('config')
 active = false
 
 colors = {}
-colors.tank = '\\cs(0,170,255)' --blue
-colors.dps = '\\cs(255,50,50)' --red
-colors.healer = '\\cs(100,255,100)' --green
-colors.close = '\\cr'
-
-local StatueCensus = {}
+colors.blue = '0,170,255'
+colors.green = '100,255,100'
+colors.pink = '240,120,250'
+colors.purple = '155,0,170'
+colors.orange = '255,100,0'
+colors.grey = '120,120,120'
+colors.red = '255,50,50'
 
 local defaults = {}
 defaults.text = {}
@@ -61,63 +62,99 @@ defaults.text.text.size = 10
 defaults.tracking = 'briareus'
 
 defaults.colors = {}
-defaults.colors.Warrior = colors.tank
-defaults.colors.Rune Fencer = colors.tank
-defaults.colors.Paladin = colors.tank
+defaults.colors.WAR = colors.blue
+defaults.colors.RUN = colors.blue
+defaults.colors.PLD = colors.blue
 
-defaults.colors.White Mage = colors.healer
-defaults.colors.Red Mage = colors.dps
+defaults.colors.WHM = colors.green
 
-defaults.colors.Monk = colors.dps
-defaults.colors.Black Mage = colors.dps
-defaults.colors.Thief = colors.dps
-defaults.colors.Bard = colors.dps
-defaults.colors.Beastmaster = colors.dps
-defaults.colors.Dark Knight = colors.dps
-defaults.colors.Ranger = colors.dps
-defaults.colors.Summoner = colors.dps
-defaults.colors.Dragoon = colors.dps
-defaults.colors.Ninja = colors.dps
-defaults.colors.Samurai = colors.dps
-defaults.colors.Blue Mage = colors.dps
-defaults.colors.Corsair = colors.dps
-defaults.colors.Puppetmaster = colors.dps
-defaults.colors.Dancer = colors.dps
-defaults.colors.Scholar = colors.dps
-defaults.colors.Geomancer = colors.dps
+defaults.colors.RDM = colors.pink
+defaults.colors.BLM = colors.pink
+defaults.colors.SCH = colors.pink
+defaults.colors.GEO = colors.pink
+defaults.colors.BRD = colors.pink
+
+defaults.colors.MNK = colors.purple
+defaults.colors.THF = colors.purple
+defaults.colors.DRK = colors.purple
+defaults.colors.RNG = colors.purple
+defaults.colors.DRG = colors.purple
+defaults.colors.SAM = colors.purple
+defaults.colors.COR = colors.purple
+defaults.colors.DNC = colors.purple
+
+defaults.colors.BST = colors.orange
+defaults.colors.SMN = colors.orange
+defaults.colors.PUP = colors.orange
+
+defaults.colors.NIN = colors.red
+defaults.colors.BLU = colors.red
+
+local StatueCensus = {}
 
 StatueCensus.settings = config.load(defaults)
 StatueCensus.text = require('texts').new(StatueCensus.settings.text, StatueCensus.settings)
 
+divergence_zone_ids = T{
+  294, --sandy
+  295, --bastok
+  296, --windy
+  297, --jeuno
+  145, --giddeus for testing
+}
 
+statue_names = T{
+  'Corporal Tombstone',
+  'Regiment Tomestone',
+}
 
-divergence_zone_ids = T{294, 295, 296, 297} --might need to require('tables') for T to be defined
-
---census data in format of census_data[zone_id][mob_id][mob_x, mob_y, mob_z][main_job, sub_job]
---contains table of each mob jobs
+--data in format of census_data[zone_id][mob_id_hex][mob_a, mob_b, ...][main_job, sub_job]
 census_data = {
   --sandy
-  294 = {
-    1 = { --1 for now - replace with id of the red eyes on top of the AH in wave 1
-      {'nin', 'blu'},
-      {'thf', 'dnc'}
+  [294] = {
+    [1] = { --1 for now - replace with id of the red eyes on top of the AH in wave 1
+      {'NIN', 'BLU'},
+      {'THF', 'DNC'}
     },
-    2 = {
-      {'nin'},
-      {'pld'},
-      {'whm'},
+    [2] = {
+      {'NIN'},
+      {'PLD'},
+      {'WHM'},
     }
   },
 
   --bastok
-  295 = {},
+  [295] = {},
 
   --windy
-  296 = {},
+  [296] = {},
 
   --jeuno
-  297 = {},
+  [297] = {},
+
+  --giddeus
+  [145] = {
+    [279] = {
+      {'THF', 'COR'},
+      {'MNK', 'BLM'},
+      {'WHM', 'SMN'},
+    },
+    [271] = {
+      {'BLM'},
+      {'RDM'},
+      {'NIN'},
+      {'BLU'},
+    }
+  },
 }
+
+function start_color(color)
+  return '\\cs(' .. color .. ')'
+end
+
+function end_color()
+  return '\\cr'
+end
 
 function get_target_info(target_id)
   return census_data[windower.ffxi.get_info().zone][target_id]
@@ -143,18 +180,29 @@ windower.register_event('target change', function(target_id)
     return
   end
 
-  local target = windower.ffxi.get_target_by_id(target_id)
+  local target = windower.ffxi.get_mob_by_target('t')
 
-  local target_info = get_target_info(target_id)
-  if not target_info then
-      StatueCensus.text:text('No data for ' .. target.name .. ' (%s)':format(target_id))
-      StatueCensus.text:show()
+  if not target or not statue_names:contains(target.name) then
+    StatueCensus.text:hide()
     return
   end
 
-  local text = target.name .. ':\n'
+  local target_info = get_target_info(target_id)
+  local text = target.name .. ' ' .. start_color(colors.grey) .. '(' .. target_id .. ')' .. end_color() .. '\n'
+
+  if not target_info then
+    text = text .. 'No data'
+    StatueCensus.text:text(text)
+    StatueCensus.text:show()
+    return
+  end
+
   for _, job in ipairs(target_info) do
-    text = text .. '  - ' .. job .. '\n'
+    text = text .. '  - ' .. start_color(StatueCensus.settings.colors[job[1]]) .. job[1] .. end_color()
+    if job[2] then
+      text = text .. '/' .. start_color(StatueCensus.settings.colors[job[2]]) .. job[2] .. end_color()
+    end
+    text = text .. '\n'
   end
 
   StatueCensus.text:text(text)
